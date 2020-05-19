@@ -47,6 +47,7 @@ def runConstructCalib(typeString, priorStage, visitList,
                                         "--rerun", "{}/{}Gen/".format(REPO_ROOT, typeString),
                                         '--longlog', "-j {}".format(num_process),
                                         batchOpts,
+                                        '-c isr.doDefect=False',
                                         '--id detector=0',
                                         "expId={}".format('^'.join(str(visit) for visit in visitList))
                                         )])
@@ -72,6 +73,8 @@ def runConstructCalib(typeString, priorStage, visitList,
 butler = env.Command([os.path.join(REPO_ROOT, "_mapper")], "bin",
                      ["echo 'lsst.obs.lsst.auxTel.AuxTelMapper' > {}/_mapper".format(REPO_ROOT)])
 env.Alias("butler", butler)
+
+
 
 # Ingest raws:
 raws = env.Command(os.path.join(REPO_ROOT, 'raw'), butler,
@@ -171,15 +174,15 @@ science = env.Command(os.path.join(REPO_ROOT, 'sciTest'), defects,
 
 
 # BFK
-bfkVisits = scienceVisits
-bfk, bfkIng = runConstructCalib('bfk', 'biasIng', bfkVisits,
-                                sourcePackage='cp_pipe',
-                                sourceScript='makeBrighterFatterKernel.py')
+# bfkVisits = scienceVisits
+# bfk, bfkIng = runConstructCalib('bfk', 'biasIng', bfkVisits,
+#                                 sourcePackage='cp_pipe',
+#                                 sourceScript='makeBrighterFatterKernel.py')
 
-# PTC
-ptcVisits = flatVisits
-ptc, ptcIng = runConstructCalib('ptc', 'biasIng', ptcVisits,
-                                sourcePackage='cp_pipe',
-                                sourceScript='measurePhotonTransferCurve.py')
+# # PTC
+# ptcVisits = flatVisits
+# ptc, ptcIng = runConstructCalib('ptc', 'biasIng', ptcVisits,
+#                                 sourcePackage='cp_pipe',
+#                                 sourceScript='measurePhotonTransferCurve.py')
 
 env.Alias('science', science)
