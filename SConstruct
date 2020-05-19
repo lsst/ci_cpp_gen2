@@ -163,13 +163,13 @@ env.Alias('defects', defects)
 # Science
 scienceVisits = [1601960058820000, 1601964522480000, 1601964937800000, 1601968088430000]
 
-science = env.Command(os.path.join(REPO_ROOT, 'sciTest'), defects,
+science = env.Command(os.path.join(REPO_ROOT, 'sciTest'), flat,
                       [getExecutableCmd('ip_isr', 'runIsr.py',
                                         REPO_ROOT,
                                         "--calib {}".format(REPO_ROOT),
                                         "--rerun", "{}/sciTest".format(REPO_ROOT),
                                         "--id detector=0 visit={}".format(str(scienceVisits[0])),
-                                        "-c isr.doDefect=True",
+                                        "-c isr.doDefect=False",
                       )])
 
 
