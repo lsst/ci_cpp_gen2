@@ -73,7 +73,8 @@ def runConstructCalib(typeString, priorStage, visitList,
 butler = env.Command([os.path.join(REPO_ROOT, "_mapper")], "bin",
                      ["echo 'lsst.obs.lsst.auxTel.AuxTelMapper' > {}/_mapper".format(REPO_ROOT)])
 env.Alias("butler", butler)
-
+Clean(butler, 'DATA/')
+Clean(butler, 'bin/')
 
 
 # Ingest raws:
