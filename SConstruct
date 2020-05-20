@@ -136,27 +136,27 @@ flatVisits = [2020012800028, 2020012800032, 2020012800036, 2020012800040,
 flatGen, flat = runConstructCalib('flat', 'dark', flatVisits)
 
 # This might fail due to bad inputs?  footprint/thresholding needs to try/except for bad sigma values (or something)
-defectsGen = env.Command(os.path.join(REPO_ROOT, 'defectGen'), flat,
-                         [getExecutableCmd('cp_pipe', 'findDefects.py',
-                                           REPO_ROOT,
-                                           "--calib {}".format(REPO_ROOT),
-                                           "--rerun", "{}/defectGen".format(REPO_ROOT),
-                                           "--id detector=0",
-                                           "--visitList {}".format('^'.join(str(visit) for visit in flatVisits + darkVisits)),
-                                           "-c assertSameRun=False",  # This is wrong in obs_lsst/config/
-                                           "-c isrForDarks.doFlat=False",
-                                           "-c isrForFlats.doFlat=False",
-                                           "-c writeAs=BOTH",
-                         )])
-env.Alias('defectsGen', defectsGen)
-defects = env.Command(os.path.join(REPO_ROOT, 'defects'), defectsGen,
-                      [getExecutableCmd('pipe_tasks', 'ingestCuratedCalibs.py',
-                                        REPO_ROOT,
-                                        "{}/defectGen/calibrations/defects/LATISS/defects/".format(REPO_ROOT),
-                                        "--calib {}".format(REPO_ROOT),
-                                        "--rerun", "{}/defects".format(REPO_ROOT),
-                                        )])
-env.Alias('defects', defects)
+# defectsGen = env.Command(os.path.join(REPO_ROOT, 'defectGen'), flat,
+#                          [getExecutableCmd('cp_pipe', 'findDefects.py',
+#                                            REPO_ROOT,
+#                                            "--calib {}".format(REPO_ROOT),
+#                                            "--rerun", "{}/defectGen".format(REPO_ROOT),
+#                                            "--id detector=0",
+#                                            "--visitList {}".format('^'.join(str(visit) for visit in flatVisits + darkVisits)),
+#                                            "-c assertSameRun=False",  # This is wrong in obs_lsst/config/
+#                                            "-c isrForDarks.doFlat=False",
+#                                            "-c isrForFlats.doFlat=False",
+#                                            "-c writeAs=BOTH",
+#                          )])
+# env.Alias('defectsGen', defectsGen)
+# defects = env.Command(os.path.join(REPO_ROOT, 'defects'), defectsGen,
+#                       [getExecutableCmd('pipe_tasks', 'ingestCuratedCalibs.py',
+#                                         REPO_ROOT,
+#                                         "{}/defectGen/calibrations/defects/LATISS/defects/".format(REPO_ROOT),
+#                                         "--calib {}".format(REPO_ROOT),
+#                                         "--rerun", "{}/defects".format(REPO_ROOT),
+#                                         )])
+# env.Alias('defects', defects)
 
 
 
