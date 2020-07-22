@@ -13,6 +13,8 @@ print(PKG_ROOT)
 REPO_ROOT = os.path.join(PKG_ROOT, "DATA")
 num_process = GetOption('num_jobs')
 
+expVisitKey = 'expId'
+
 # Copied from ci_hsc_gen3:
 def getExecutableCmd(package, script, *args, directory=None):
     """
@@ -48,7 +50,7 @@ def runConstructCalib(typeString, priorStage, visitList,
                                         '--longlog', "-j {}".format(num_process),
                                         batchOpts,
                                         '--id detector=0',
-                                        "expId={}".format('^'.join(str(visit) for visit in visitList))
+                                        "{}={}".format(expVisitKey, '^'.join(str(visit) for visit in visitList))
                                         )])
     env.Alias("{}Gen".format(typeString), run)
 
@@ -167,8 +169,20 @@ science = env.Command(os.path.join(REPO_ROOT, 'sciTest'), defects,
                                         "--id detector=0 visit={}".format(str(scienceVisits[0])),
                                         "-c isr.doDefect=True",
                       )])
+env.Alias("science", science)
 
-
+crosstalk = env.Command(os.path.join(REPO_ROOT, 'ctCheck'), flat,
+                        [getExecutableCmd('ip_isr', 'measureCrosstalk.py',
+                                          REPO_ROOT,
+                                          "--rerun", "{}/ctCheckRun".format(REPO_ROOT),
+                                          '--crosstalkName ciCppTest',
+                                          '--outputFileName', "{}/ctCheckRun/ctValues.yaml".format(REPO_ROOT),
+                                          '--dump-ratios', "{}/ctCheckRun/ctRat.pkl".format(REPO_ROOT),
+                                          '-c isr.doLinearize=False',
+                                          '-c isr.doDefect=False',
+                                          "--id detector=0 visit={}".format("^".join(str(exp) for exp in scienceVisits))
+                        )])
+env.Alias("crosstalk", crosstalk)
 
 # BFK
 bfkVisits = scienceVisits
