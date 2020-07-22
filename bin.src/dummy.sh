@@ -1,3 +1,4 @@
+#!/bin/sh
 
-echo "Dummy!"
+echo "A dummy script to likely be replaced later."
 
