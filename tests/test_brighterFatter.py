@@ -1,4 +1,4 @@
-# This file is part of ci_cpp.
+# This file is part of ci_cpp_gen2.
 #
 # Developed for the LSST Data Management System.
 # This product includes software developed by the LSST Project
@@ -18,17 +18,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import hashlib
-import os
-import numpy as np
 import unittest
-
-import lsst.daf.persistence as dafPersist
 import lsst.utils.tests
 
-from lsst.utils import getPackageDir
 
-
+# TODO: DM-26396
+#       Update these tests to validate calibration construction.
 class BrighterFatterTestCases(lsst.utils.tests.TestCase):
 
     def test_canary(self):

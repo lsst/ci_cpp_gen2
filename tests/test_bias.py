@@ -1,4 +1,4 @@
-# This file is part of ci_cpp.
+# This file is part of ci_cpp_gen2.
 #
 # Developed for the LSST Data Management System.
 # This product includes software developed by the LSST Project
@@ -18,7 +18,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import hashlib
 import os
 import numpy as np
 import unittest
@@ -30,12 +29,13 @@ import lsst.meas.algorithms as measAlg
 import lsst.utils.tests
 
 from lsst.pipe.tasks.repair import RepairTask
-from lsst.utils import getPackageDir
 
 
+# TODO: DM-26396
+#       Update these tests to validate calibration construction.
 class BiasTestCases(lsst.utils.tests.TestCase):
 
-    def setUp(self):
+    def setUpClass(self):
         """Setup butler, and generate an ISR processed exposure.
 
         Notes
@@ -46,8 +46,8 @@ class BiasTestCases(lsst.utils.tests.TestCase):
         overscan correction and bias subtraction
 
         """
-        repoDir = os.path.join(getPackageDir('ci_cpp_gen2'), "DATA")
-        calibDir = os.path.join(getPackageDir('ci_cpp_gen2'), "DATA", "calibs")
+        repoDir = os.path.join("..", "DATA")
+        calibDir = os.path.join("..", "DATA", "calibs")
         butler = dafPersist.Butler(repoDir, calibRoot=calibDir)
 
         self.config = ipIsr.IsrTaskConfig()
@@ -83,19 +83,6 @@ class BiasTestCases(lsst.utils.tests.TestCase):
         results = self.isrTask.runDataRef(self.dataRef)
         self.exposure = results.outputExposure
 
-    def test_canary(self):
-        """Test for data value changes.                                                                             
-        """
-        repoDir = os.path.join(getPackageDir('ci_cpp_gen2'), "DATA")
-        calibDir = os.path.join(getPackageDir('ci_cpp_gen2'), "DATA", "calibs")
-        butler = dafPersist.Butler(repoDir, calibRoot=calibDir)
-
-        dark = butler.get('bias', {'detector': 0, 'expId': 2020012800014})
-        m = hashlib.md5()
-        m.update(dark.getImage().getArray())
-
-        self.assertEquals(m.hexdigest(), '47b6328cbad5e4a212fc635e128d541e')
-
     def test_independentFrameLevel(self):
         """Test image mean.
 
@@ -107,8 +94,7 @@ class BiasTestCases(lsst.utils.tests.TestCase):
         error
         """
         mean = afwMath.makeStatistics(self.exposure.getImage(), afwMath.MEAN).getValue()
-        print("4.2", mean)
-        self.assertLess(np.abs(mean), 1)
+        self.assertLess(np.abs(mean), 1, msg=f"Test 4.2: {mean}")
 
     def test_independentFrameSigma(self):
         """Amp sigma against readnoise
@@ -130,9 +116,8 @@ class BiasTestCases(lsst.utils.tests.TestCase):
             sigma = afwMath.makeStatistics(ampExposure.getImage(),
                                            afwMath.STDEVCLIP, statControl).getValue()
             # needs to be < 0.05
-            print("4.3", amp.getName(), sigma, amp.getReadNoise(),
-                  np.abs(sigma - amp.getReadNoise())/amp.getReadNoise())
-            self.assertLess(np.abs(sigma - amp.getReadNoise())/amp.getReadNoise(), 0.71)
+            fractionalError = np.abs(sigma - amp.getReadNoise())/amp.getReadNoise()
+            self.assertLess(fractionalError, 0.71, msg=f"Test 4.3: {amp.getName()} {fractionalError}")
 
     def test_amplifierSigma(self):
         """Clipped sigma against CR-rejected sigma
@@ -164,9 +149,10 @@ class BiasTestCases(lsst.utils.tests.TestCase):
             statControl = afwMath.StatisticsControl()
             statControl.setAndMask(self.exposure.mask.getPlaneBitMask(["SAT", "BAD", "NO_DATA", "CR"]))
             sigma = afwMath.makeStatistics(crAmp.getImage(), afwMath.STDEV, statControl).getValue()
+
             # needs to be < 0.05
-            print("4.4", amp.getName(), sigma, sigmaClip, np.abs(sigma - sigmaClip)/sigmaClip)
-            self.assertLess(np.abs(sigma - sigmaClip)/sigmaClip, 3.0)
+            fractionalError = np.abs(sigma - sigmaClip)/sigmaClip
+            self.assertLess(fractionalError, 3.0, msg="Test 4.4: {amp.getName()} {fractionalError}")
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):

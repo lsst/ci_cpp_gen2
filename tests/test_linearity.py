@@ -1,4 +1,4 @@
-# This file is part of ci_cpp.
+# This file is part of ci_cpp_gen2.
 #
 # Developed for the LSST Data Management System.
 # This product includes software developed by the LSST Project
@@ -18,18 +18,13 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 import unittest
-import numpy as np
-
-import lsst.afw.image as afwImage
-import lsst.ip.isr as ipIsr
 import lsst.utils.tests
 
-from lsst.utils import getPackageDir
 
-
-class PtcTestCases(lsst.utils.tests.TestCase):
+# TODO: DM-26396
+#       Update these tests to validate calibration construction.
+class LinearityTestCases(lsst.utils.tests.TestCase):
 
     def test_setup_independentFrame(self):
         """Ill defined/is the construction step.
@@ -72,7 +67,7 @@ class PtcTestCases(lsst.utils.tests.TestCase):
 
         """
         pass
-    
+
     def test_amplifierSigma(self):
         """Missing data.
 
@@ -85,6 +80,7 @@ class PtcTestCases(lsst.utils.tests.TestCase):
 
         """
         pass
+
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass

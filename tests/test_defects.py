@@ -1,4 +1,4 @@
-# This file is part of ci_cpp.
+# This file is part of ci_cpp_gen2.
 #
 # Developed for the LSST Data Management System.
 # This product includes software developed by the LSST Project
@@ -22,19 +22,19 @@ import os
 import numpy as np
 import unittest
 
-
 import lsst.afw.math as afwMath
 import lsst.daf.persistence as dafPersist
 import lsst.ip.isr as ipIsr
-import lsst.meas.algorithms as measAlg
 import lsst.utils.tests
 
 from lsst.utils import getPackageDir
 
 
+# TODO: DM-26396
+#       Update these tests to validate calibration construction.
 class DefectTestCases(lsst.utils.tests.TestCase):
 
-    def setUp(self):
+    def setUpClass(self):
         """Setup butler and generate an ISR processed exposure.
 
         Notes
@@ -94,49 +94,9 @@ class DefectTestCases(lsst.utils.tests.TestCase):
         mean = afwMath.makeStatistics(self.exposure.getImage(), afwMath.MEAN).getValue()
         median = afwMath.makeStatistics(self.exposure.getImage(), afwMath.MEDIAN).getValue()
         sigma = afwMath.makeStatistics(self.exposure.getImage(), afwMath.STDEV).getValue()
-        print("3.2", mean, sigma)
-        self.assertLess(np.abs(mean/median - 1.0), sigma)
 
-    def test_masterFrameSigma(self):
-        """Ill defined.
+        self.assertLess(np.abs(mean/median - 1.0), sigma, msg=f"Test 3.2: {mean} {sigma}")
 
-        Notes
-        -----
-        DMTN-101 3.3
-
-        For each master frame, divide by the standard deviation image,
-        and confirm that the 5-sigma clipped standard is 1.0 to within
-        statistical noise (after masking known defects)
-        """
-        pass
-    
-    def test_pixelConsistency(self):
-        """Ill-defined.
-
-        Notes
-        -----
-        DMTN-101 3.4
-
-        for each pixel, check if all master frames are consistent to
-        within statistical noise; if not, confirm that they are
-        included in the defect map.  Also identify pixels in the
-        defect map that are not identified.
-
-        """
-        pass
-
-    def test_darkPixels(self):
-        """Missing data.
-
-        Notes
-        -----
-        DMTN-101 3.5
-        
-        Search the pocket-pumped flats for dark pixels.  Confirm that
-        they are all included in the defect map.  Identify pixels in
-        the defect map that are not found
-        """
-        pass
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
     pass

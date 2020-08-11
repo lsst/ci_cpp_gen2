@@ -1,4 +1,4 @@
-# This file is part of ci_cpp.
+# This file is part of ci_cpp_gen2.
 #
 # Developed for the LSST Data Management System.
 # This product includes software developed by the LSST Project
@@ -19,7 +19,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
-import hashlib
 import numpy as np
 import unittest
 
@@ -30,23 +29,29 @@ import lsst.meas.algorithms as measAlg
 import lsst.utils.tests
 
 from lsst.pipe.tasks.repair import RepairTask
-from lsst.utils import getPackageDir
 
 
-class DarkTestCases(lsst.utils.tests.TestCase):
+# TODO: DM-26396
+#       Update these tests to validate calibration construction.
+class FlatTestCases(lsst.utils.tests.TestCase):
 
-    def setUp(self):
+    def setUpClass(self):
         """Setup butler and generate an ISR processed exposure.
-        
+
+        As no flat tests are described in DMTN-101, use similar tests
+        to those defined for darks.
+
         Notes
         -----
-        DMTN-101 5.1:
+        DMTN-101 10.X:
 
-        Process an independent dark frame through the ISR including
-        overscan correction, bias subtraction, dark subtraction.
+        Process an independent flat frame through the ISR including
+        overscan correction, bias subtraction, dark subtraction, flat
+        correction
+
         """
-        repoDir = os.path.join(getPackageDir('ci_cpp_gen2'), "DATA")
-        calibDir = os.path.join(getPackageDir('ci_cpp_gen2'), "DATA", "calibs")
+        repoDir = os.path.join("..", "DATA")
+        calibDir = os.path.join("..", "DATA", "calibs")
         butler = dafPersist.Butler(repoDir, calibRoot=calibDir)
 
         self.config = ipIsr.IsrTaskConfig()
@@ -78,137 +83,25 @@ class DarkTestCases(lsst.utils.tests.TestCase):
 
         self.isrTask = ipIsr.IsrTask(config=self.config)
         # This is not an independent frame.
-        self.dataRef = butler.dataRef('raw', dataId={'detector': 0, 'expId': 2020012800014})
+        self.dataRef = butler.dataRef('raw', dataId={'detector': 0, 'expId': 2020012800028})
         results = self.isrTask.runDataRef(self.dataRef)
         self.exposure = results.outputExposure
 
-    def test_canary(self):
-        """Test for data value changes.
-        """
-        repoDir = os.path.join(getPackageDir('ci_cpp_gen2'), "DATA")
-        calibDir = os.path.join(getPackageDir('ci_cpp_gen2'), "DATA", "calibs")
-        butler = dafPersist.Butler(repoDir, calibRoot=calibDir)
-
-        calib = butler.get('flat', {'detector': 0, 'expId': 2020012800014})
-        m = hashlib.md5()
-        m.update(calib.getImage().getArray())
-        
-        self.assertEquals(m.hexdigest(), '33fbb3f896900c9aeadd355b7c487660')
-    
     def test_independentFrameLevel(self):
-        """Test image mean.
+        """Test image mean and sigma are plausible.
 
         Notes
         -----
-        DMTN-101 5.2:
-
-        Confirm that the mean of the result is 0 to within statistical
-        error
+        DMTN-101 10.X:
         """
         mean = afwMath.makeStatistics(self.exposure.getImage(), afwMath.MEAN).getValue()
         sigma = afwMath.makeStatistics(self.exposure.getImage(), afwMath.STDEV).getValue()
-        print("5.2f", mean, sigma)
-        self.assertLess(np.abs(mean), sigma)
-
-    def test_independentFrameSigma(self):
-        """Amp sigma against readnoise.
-
-        Notes
-        -----
-        DMTN-101 5.3:
-
-        Confirm that the 5-sigma clipped standard deviation of each
-        amplifier is within 5\% of the nominal readnoise, as
-        determined by a robust measure of the noise in the serial
-        overscan
-
-        """
-        ccd = self.exposure.getDetector()
-        for amp in ccd:
-            ampExposure = self.exposure.Factory(self.exposure, amp.getBBox())
-            statControl = afwMath.StatisticsControl(5.0, 5)
-            statControl.setAndMask(self.exposure.mask.getPlaneBitMask(["SAT", "BAD", "NO_DATA"]))
-            sigma = afwMath.makeStatistics(ampExposure.getImage(),
-                                           afwMath.STDEVCLIP, statControl).getValue()
-            # needs to be < 0.05
-            print("5.3f", amp.getName(), sigma, amp.getReadNoise(),
-                  np.abs(sigma - amp.getReadNoise())/amp.getReadNoise())
-            self.assertLess(np.abs(sigma - amp.getReadNoise())/amp.getReadNoise(), 0.71)
-    
-    def test_amplifierSigma(self):
-        """Clipped sigma against CR-rejected sigma.
-
-        Notes
-        -----
-        DMTN-101 5.4:
-
-        Run a CR rejection on the result and confirm that the
-        unclipped standard deviation is consistent with the 5-sigma
-        clipped value.
-
-        """
-        crTask = RepairTask()
-        crRejected = self.exposure.clone()
-        psf = measAlg.SingleGaussianPsf(21, 21, 3.0)
-        crRejected.setPsf(psf)
-        crTask.run(crRejected, keepCRs=False)
-
-        ccd = self.exposure.getDetector()
-        for amp in ccd:
-            ampExposure = self.exposure.Factory(self.exposure, amp.getBBox())
-            clipControl = afwMath.StatisticsControl(5.0, 5)
-            clipControl.setAndMask(self.exposure.mask.getPlaneBitMask(["SAT", "BAD", "NO_DATA"]))
-            sigmaClip = afwMath.makeStatistics(ampExposure.getImage(),
-                                               afwMath.STDEVCLIP, clipControl).getValue()
-
-            crAmp = crRejected.Factory(crRejected, amp.getBBox())
-            statControl = afwMath.StatisticsControl()
-            statControl.setAndMask(self.exposure.mask.getPlaneBitMask(["SAT", "BAD", "NO_DATA", "CR"]))
-            sigma = afwMath.makeStatistics(crAmp.getImage(), afwMath.STDEV, statControl).getValue()
-            # needs to be < 0.05
-            print("5.4f", amp.getName(), sigma, sigmaClip, np.abs(sigma - sigmaClip)/sigmaClip)
-            self.assertLess(np.abs(sigma - sigmaClip)/sigmaClip, 3.0)
-
-    def test_55(self):
-        """Split processing test.
-
-        Notes
-        -----
-        DMTN-101 5.5:
-
-        Process the 150 "even" and "odd" visits separately, and
-        subtract the two resulting dark calibration frames.
-        """
-        pass
-
-    def test_56(self):
-        """Split processing means.
-
-        Notes
-        -----
-        DMTN-101 5.6:
-
-        Confirm that the mean of the difference is 0 to within
-        statistical error
-        """
-        pass
-
-    def test_57(self):
-        """Split processing noise check.
-
-        Notes
-        -----
-        DMTN-101 5.7
-
-        Confirm that the unclipped standard deviation of the
-        difference is consistent with the dark current and readnoise
-        (as measured by a robust measure of the noise in the serial
-        overscan of the individual frames), as corrected by the
-        correct combination of N$_{\text{b}}$, N$_{\text{d}}$, and
-        T$_{\text{d}}$.
-
-        """
-        pass
+        expectMean = 8750
+        expectSigmaMax = 3000
+        self.assertLess(np.abs(mean - expectMean), sigma,
+                        msg=f"Test 10.X: {mean} {expectMean} {sigma}")
+        self.assertLess(sigma, expectSigmaMax,
+                        msg=f"Test 10.X2: {sigma} {expectSigmaMax}")
 
 
 class MemoryTester(lsst.utils.tests.MemoryTestCase):
