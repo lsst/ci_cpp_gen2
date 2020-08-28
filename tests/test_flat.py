@@ -25,17 +25,15 @@ import unittest
 import lsst.afw.math as afwMath
 import lsst.daf.persistence as dafPersist
 import lsst.ip.isr as ipIsr
-import lsst.meas.algorithms as measAlg
 import lsst.utils.tests
-
-from lsst.pipe.tasks.repair import RepairTask
+from lsst.utils import getPackageDir
 
 
 # TODO: DM-26396
 #       Update these tests to validate calibration construction.
 class FlatTestCases(lsst.utils.tests.TestCase):
-
-    def setUpClass(self):
+    @classmethod
+    def setUpClass(cls):
         """Setup butler and generate an ISR processed exposure.
 
         As no flat tests are described in DMTN-101, use similar tests
@@ -50,42 +48,44 @@ class FlatTestCases(lsst.utils.tests.TestCase):
         correction
 
         """
-        repoDir = os.path.join("..", "DATA")
-        calibDir = os.path.join("..", "DATA", "calibs")
+        repoDir = os.path.join(getPackageDir('ci_cpp_gen2'), "DATA")
+        calibDir = os.path.join(repoDir, "calibs")
         butler = dafPersist.Butler(repoDir, calibRoot=calibDir)
 
-        self.config = ipIsr.IsrTaskConfig()
-        self.config.doSaturation = True
-        self.config.doSuspect = True
-        self.config.doSetBadRegions = True
-        self.config.doOverscan = True
-        self.config.doBias = True
-        self.config.doVariance = True
-        self.config.doDark = True
-        self.config.doFlat = True
+        config = ipIsr.IsrTaskConfig()
+        config.doSaturation = True
+        config.doSuspect = True
+        config.doSetBadRegions = True
+        config.doOverscan = True
+        config.doBias = True
+        config.doVariance = True
+        config.doDark = True
+        config.doFlat = True
+        config.doDefect = True
 
-        self.config.doLinearize = False
-        self.config.doCrosstalk = False
-        self.config.doWidenSaturationTrails = False
-        self.config.doBrighterFatter = False
-        self.config.doDefect = False
-        self.config.doSaturationInterpolation = False
-        self.config.doStrayLight = False
-        self.config.doApplyGains = False
-        self.config.doFringe = False
-        self.config.doMeasureBackground = False
-        self.config.doVignette = False
-        self.config.doAttachTransmissionCurve = False
-        self.config.doUseOpticsTransmission = False
-        self.config.doUseFilterTransmission = False
-        self.config.doUseSensorTransmission = False
-        self.config.doUseAtmosphereTransmission = False
+        config.doLinearize = False
+        config.doCrosstalk = False
+        config.doWidenSaturationTrails = False
+        config.doBrighterFatter = False
+        config.doSaturationInterpolation = False
+        config.doStrayLight = False
+        config.doApplyGains = False
+        config.doFringe = False
+        config.doMeasureBackground = False
+        config.doVignette = False
+        config.doAttachTransmissionCurve = False
+        config.doUseOpticsTransmission = False
+        config.doUseFilterTransmission = False
+        config.doUseSensorTransmission = False
+        config.doUseAtmosphereTransmission = False
 
-        self.isrTask = ipIsr.IsrTask(config=self.config)
+        isrTask = ipIsr.IsrTask(config=config)
+        # TODO: DM-26396
         # This is not an independent frame.
-        self.dataRef = butler.dataRef('raw', dataId={'detector': 0, 'expId': 2020012800028})
-        results = self.isrTask.runDataRef(self.dataRef)
-        self.exposure = results.outputExposure
+        dataRef = butler.dataRef('raw', dataId={'detector': 0, 'expId': 2020012800028})
+        results = isrTask.runDataRef(dataRef)
+        cls.exposure = results.outputExposure
+        del butler
 
     def test_independentFrameLevel(self):
         """Test image mean and sigma are plausible.

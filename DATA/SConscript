@@ -1,0 +1,253 @@
+# -*- python -*-
+import os
+import yaml
+import lsst.sconsUtils as utils
+
+from SCons.Script import SConscript, GetOption
+
+
+env = utils.env.Clone(ENV=os.environ)
+
+PKG_ROOT = env.ProductDir("ci_cpp_gen2")
+REPO_ROOT = os.path.join(PKG_ROOT, "DATA")
+CALIB_ROOT = os.path.join(REPO_ROOT, "calibs")
+TESTDATA_ROOT = env.ProductDir("testdata_latiss_cpp")
+CAMERA = "lsst.obs.lsst.auxTel.AuxTelMapper"
+
+num_process = GetOption('num_jobs')
+expVisitKey = 'expId'
+
+# Load exposure lists from testsdata repo, to ensure consistency.
+with open(os.path.join(TESTDATA_ROOT, "raw", "manifest.yaml")) as f:
+    exposureDict = yaml.safe_load(f)
+
+# These two functions construct commands to be used below.
+def getExecutableCmd(package, script, *args):
+    """Function to construct a command from the specified package.
+
+    Parameters
+    ----------
+    package : `str`
+        Package to get the command from.
+    script : `str`
+        Command to find in that package.
+    args : `list` [`str`]
+        Arguments to concatenate to the command.
+
+    Returns
+    -------
+    cmd : `str`
+        The constructed command.
+    """
+    cmds = [os.path.join(env.ProductDir(package), "bin", script)]
+    cmds.extend(args)
+    return " ".join(cmds)
+
+def runConstructCalib(stage, priorStage, visitList,
+                      sourcePackage='pipe_drivers', sourceScript='CONSTRUCT_CALIBS'):
+    """Construct and define a constructCalibs.py command in a uniform way.
+
+    Parameters
+    ----------
+    stage : `str`
+        Name of the calibration stage to construct.
+    priorStage : `str`
+        Name of the previous stage to use as a dependency.
+    visitList : `list` [`int`]
+        List of visit ids to use in generating the calibration.
+    sourcePackage : `str`, optional
+        Package to find command to run.
+    sourceScript : `str`, optional
+        Name of the script to run, or with the default, the
+        appropriate constructX.py will be used.
+
+    Returns
+    -------
+    run : `SCons.Environment.Command`
+        The command that will build the calibration.
+    ingest : `SCons.Environment.Command`
+        The command that will ingest the calibration.
+    """
+    if sourceScript == 'CONSTRUCT_CALIBS':
+        sourceScript = "construct{}.py".format(stage.capitalize())
+
+    if sourcePackage == 'pipe_drivers':
+        batchOpts = '--batch-type none'
+    else:
+        batchOpts = ''
+    visitIds = expVisitKey + "=" + '^'.join(str(visit) for visit in visitList)
+    
+    run = env.Command(os.path.join(REPO_ROOT, f"{stage}Gen"), priorStage,
+                      [getExecutableCmd(sourcePackage, sourceScript, REPO_ROOT,
+                                        "--calib", "{}".format(CALIB_ROOT),
+                                        "--rerun", "{}/{}Gen/".format(REPO_ROOT, stage),
+                                        '--longlog', "-j {}".format(num_process),
+                                        batchOpts,
+                                        '--id detector=0', visitIds,
+                                        "-C {}/config/constructCalib.py".format(PKG_ROOT)
+                                        )])
+    env.Alias("{}Gen".format(stage), run)
+
+    ingest = env.Command(os.path.join(CALIB_ROOT, stage), f"{stage}Gen",
+                         [getExecutableCmd('pipe_tasks', 'ingestCalibs.py',
+                                           REPO_ROOT,
+                                           "{}/{}Gen/{}/2020-01-28/*.fits".format(REPO_ROOT,
+                                                                                  stage, stage),
+                                           "{}/{}Gen/{}/2020-01-28/*/*.fits".format(REPO_ROOT,
+                                                                                    stage, stage),
+                                           "{}/{}Gen/{}/*/2020-01-28/*.fits".format(REPO_ROOT,
+                                                                                    stage, stage),
+                                           '--validity 9999',
+                                           '--calib {}'.format(CALIB_ROOT),
+                                           '--mode=link')])
+    env.Alias(stage, ingest)
+
+    return(run, ingest)
+
+
+# Begin ci_cpp build commands
+# Create butler, ingest raws, ingest curated calibrations.
+# TODO: DM-25903 The sqlite3 command is needed until the detectorName
+# is in defect generation.
+latissSourceDir = env.ProductDir("obs_lsst_data")
+butler = env.Command([os.path.join(REPO_ROOT, "_mapper"),
+                      os.path.join(REPO_ROOT, "raw"),
+                      os.path.join(REPO_ROOT, "registry.sqlite3"),
+                      os.path.join(CALIB_ROOT, "calibRegistry.sqlite3"),
+                      os.path.join(CALIB_ROOT, "_mapper"),
+                      os.path.join(CALIB_ROOT, 'defects'),
+                      ], None,
+                     [f"echo '{CAMERA}' > {REPO_ROOT}/_mapper",
+                      getExecutableCmd("pipe_tasks", 'ingestImages.py',
+                                       REPO_ROOT, f"{TESTDATA_ROOT}/raw/2020-01-28/*.fits"),
+                      f"sqlite3 {os.path.join(REPO_ROOT, 'registry.sqlite3')} "
+                      f" \"UPDATE raw SET detectorName = 'RXX_S00' WHERE detectorName = 'S00';\"",
+                      f"echo '{CAMERA}' > {CALIB_ROOT}/_mapper",
+                      getExecutableCmd("pipe_tasks", "ingestCuratedCalibs.py",
+                                       CALIB_ROOT,
+                                       f"{latissSourceDir}/latiss/defects",
+                                       "--calib", CALIB_ROOT,
+                                       "--config clobber=True")])
+env.Alias("butler", butler)
+
+# Bias
+biasGen, bias = runConstructCalib('bias', 'butler', exposureDict['biasExposures'])
+
+# Dark
+darkGen, dark = runConstructCalib('dark', 'bias', exposureDict['darkExposures'])
+
+# Flat
+flatGen, flat = runConstructCalib('flat', 'dark', exposureDict['flatExposures'])
+
+# Science: Only depend on the flat to be finished.
+#          This also uses visits due to gen2.
+sciExposure = "^".join([str(vv) for vv in exposureDict['scienceVisits']])
+science = env.Command(os.path.join(REPO_ROOT, 'sciTest'), flat,
+                      [getExecutableCmd('ip_isr', 'runIsr.py', REPO_ROOT,
+                                        f"--calib {CALIB_ROOT}",
+                                        f"--rerun", f"{REPO_ROOT}/sciTest",
+                                        f"--id detector=0 visit={sciExposure}")])
+env.Alias("science", science)
+
+# Crosstalk: Use the science exposures.
+#    Split into two to run ISR separate from the calibration construction.
+cpPipeSourceDir = env.ProductDir('cp_pipe')
+crosstalkIsr = env.Command(os.path.join(REPO_ROOT, 'crosstalkIsr'), flat,
+                           [getExecutableCmd('ip_isr', 'runIsr.py', REPO_ROOT,
+                                             f"--calib {CALIB_ROOT}", "--rerun",
+                                             f"{REPO_ROOT}/crosstalkIsr",
+                                             "--id detector=0", f"visit={sciExposure}",
+                                             f"-C {cpPipeSourceDir}/config/crosstalkIsr.py",
+                                             "-c isr.doLinearize=False")])
+env.Alias("crosstalkIsr", crosstalkIsr)
+
+crosstalkGen = env.Command(os.path.join(REPO_ROOT, "crosstalkGen"), crosstalkIsr,
+                           [getExecutableCmd('cp_pipe', "measureCrosstalk.py",
+                                             f"{REPO_ROOT}/crosstalkIsr",
+                                             "--rerun", f"{REPO_ROOT}/crosstalkGen",
+                                             "--id detector=0", f"visit={sciExposure}")])
+env.Alias("crosstalk", crosstalkGen)
+
+
+# Defects
+defectExposure = "^".join([str(vv) for vv in
+                           exposureDict['flatExposures'] + exposureDict['darkExposures']])
+defectsGen = env.Command(os.path.join(REPO_ROOT, 'defectGen'), flat,
+                         [getExecutableCmd('cp_pipe', 'findDefects.py', REPO_ROOT,
+                                           f"--calib {CALIB_ROOT}", "--rerun",
+                                           f"{REPO_ROOT}/defectGen",
+                                           "--id detector=0", f"--visitList {defectExposure}",
+                                           "-c assertSameRun=False",
+                                           "-c isrForDarks.doFlat=False",
+                                           "-c isrForFlats.doFlat=False",
+                                           "-c writeAs=BOTH")])
+env.Alias('defectsGen', defectsGen)
+
+# PTC
+#    As with Crosstalk, split the ISR from the calibration.
+ptcExposurePairs = " ".join([str(vv) for vv in exposureDict['ptcExposurePairs']])
+ptcIsrExposures = ptcExposurePairs.replace(" ", "^").replace(",", "^")
+obsLsstDir = env.ProductDir('obs_lsst')
+ptcIsr = env.Command(os.path.join(REPO_ROOT, 'ptcIsr'), flat,
+                     [getExecutableCmd('ip_isr', 'runIsr.py', REPO_ROOT,
+                                       f"--calib {CALIB_ROOT}",
+                                       "--rerun", f"{REPO_ROOT}/ptcIsr",
+                                       "--id detector=0", f"expId={ptcIsrExposures}",
+                                       f"-C {obsLsstDir}/config/latiss/ptcIsr.py",
+                                       '-j', str(num_process))])
+env.Alias('ptcIsr', ptcIsr)
+
+ptcGen = env.Command(os.path.join(REPO_ROOT, 'ptcGen'), ptcIsr,
+                     [getExecutableCmd('cp_pipe', 'measurePhotonTransferCurve.py',
+                                       f"{REPO_ROOT}/ptcIsr",
+                                       "--rerun", f"{REPO_ROOT}/ptcGen",
+                                       "--id detector=0",
+                                       "-c ptcFitType=POLYNOMIAL polynomialFitDegree=3",
+                                       f"--visit-pairs {ptcExposurePairs}",
+                                       "-j", str(num_process))])
+env.Alias('ptcGen', ptcGen)
+
+# Brighter-Fatter Kernel.
+#    This still does ISR processing, so clip exposure list to speed processing.
+bfkExposurePairs = " ".join([str(vv) for vv in exposureDict['ptcExposurePairs'][::2]])
+bfkGen = env.Command(os.path.join(REPO_ROOT, 'bfkGen'), flat,
+                     [getExecutableCmd('cp_pipe', 'makeBrighterFatterKernel.py',
+                                       REPO_ROOT,
+                                       "--calib {CALIB_ROOT}",
+                                       "--rerun", f"{REPO_ROOT}/bfkGen",
+                                       "--id detector=0",
+                                       f"--visit-pairs {bfkExposurePairs}",
+                                       "-j", str(num_process))])
+env.Alias('bfkGen', bfkGen)
+
+
+# Set up dependencies
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, "_mapper"))
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, "raw"))
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, "registry.sqlite3"))
+env.Depends(utils.targets['tests'], os.path.join(CALIB_ROOT, "calibRegistry.sqlite3"))
+env.Depends(utils.targets['tests'], os.path.join(CALIB_ROOT, "_mapper"))
+env.Depends(utils.targets['tests'], os.path.join(CALIB_ROOT, 'defects'))
+
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'biasGen'))
+env.Depends(utils.targets['tests'], os.path.join(CALIB_ROOT, 'bias'))
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'darkGen'))
+env.Depends(utils.targets['tests'], os.path.join(CALIB_ROOT, 'dark'))
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'flatGen'))
+env.Depends(utils.targets['tests'], os.path.join(CALIB_ROOT, 'flat'))
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'defectGen'))
+
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'crosstalkIsr'))
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'crosstalkGen'))
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'ptcIsr'))
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'ptcGen'))
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'bfkGen'))
+
+env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'sciTest'))
+
+
+# Set up things to clean.
+targets = [butler, bias, dark, flat, science, crosstalkGen, defectsGen, ptcGen, bfkGen,
+           biasGen, darkGen, flatGen, ptcIsr, crosstalkIsr]
+env.Clean(targets, [y for x in targets for y in x] + 
+          [os.path.join(CALIB_ROOT)])

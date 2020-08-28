@@ -17,6 +17,14 @@ version.py
 .eggs
 .pytest_cache
 *.egg-info
-DATA/
 bin/
 .scons/
+.coverage
+DATA/*Gen
+DATA/*I*
+DATA/sciTest
+DATA/raw
+DATA/calibs
+DATA/_mapper
+DATA/registry.sqlite3
+pytest*
