@@ -203,7 +203,7 @@ ptcGen = env.Command(os.path.join(REPO_ROOT, 'ptcGen'), ptcIsr,
                                        "--rerun", f"{REPO_ROOT}/ptcGen",
                                        "--id detector=0",
                                        "-c ptcFitType=POLYNOMIAL polynomialFitDegree=3",
-                                       f"--visit-pairs {ptcExposurePairs}",
+                                       f"--id expId={ptcIsrExposures}",
                                        "-j", str(num_process))])
 env.Alias('ptcGen', ptcGen)
 
