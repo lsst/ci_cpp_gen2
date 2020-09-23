@@ -204,6 +204,7 @@ ptcGen = env.Command(os.path.join(REPO_ROOT, 'ptcGen'), ptcIsr,
                                        "--id detector=0",
                                        "-c ptcFitType=POLYNOMIAL polynomialFitDegree=3",
                                        f"--id expId={ptcIsrExposures}",
+                                       f"-c doPhotodiode=False",
                                        "-j", str(num_process))])
 env.Alias('ptcGen', ptcGen)
 
