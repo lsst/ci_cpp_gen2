@@ -252,3 +252,5 @@ targets = [butler, bias, dark, flat, science, crosstalkGen, defectsGen, ptcGen, 
            biasGen, darkGen, flatGen, ptcIsr, crosstalkIsr]
 env.Clean(targets, [y for x in targets for y in x] + 
           [os.path.join(CALIB_ROOT)])
+
+env.Alias('install', 'SConscript')
