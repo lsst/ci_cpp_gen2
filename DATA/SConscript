@@ -2,6 +2,7 @@
 import os
 import yaml
 import lsst.sconsUtils as utils
+from lsst.sconsUtils.utils import libraryLoaderEnvironment
 
 from SCons.Script import SConscript, GetOption
 
@@ -39,7 +40,8 @@ def getExecutableCmd(package, script, *args):
     cmd : `str`
         The constructed command.
     """
-    cmds = [os.path.join(env.ProductDir(package), "bin", script)]
+    cmds = ["{} python {}".format(libraryLoaderEnvironment(),
+                                  os.path.join(env.ProductDir(package), "bin", script))]
     cmds.extend(args)
     return " ".join(cmds)
 
