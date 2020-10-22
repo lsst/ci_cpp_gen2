@@ -2,6 +2,7 @@
 import os
 import yaml
 import lsst.sconsUtils as utils
+from lsst.sconsUtils.utils import libraryLoaderEnvironment
 
 from SCons.Script import SConscript, GetOption
 
@@ -39,7 +40,8 @@ def getExecutableCmd(package, script, *args):
     cmd : `str`
         The constructed command.
     """
-    cmds = [os.path.join(env.ProductDir(package), "bin", script)]
+    cmds = ["{} python {}".format(libraryLoaderEnvironment(),
+                                  os.path.join(env.ProductDir(package), "bin", script))]
     cmds.extend(args)
     return " ".join(cmds)
 
@@ -203,7 +205,8 @@ ptcGen = env.Command(os.path.join(REPO_ROOT, 'ptcGen'), ptcIsr,
                                        "--rerun", f"{REPO_ROOT}/ptcGen",
                                        "--id detector=0",
                                        "-c ptcFitType=POLYNOMIAL polynomialFitDegree=3",
-                                       f"--visit-pairs {ptcExposurePairs}",
+                                       f"--id expId={ptcIsrExposures}",
+                                       f"-c doPhotodiode=False",
                                        "-j", str(num_process))])
 env.Alias('ptcGen', ptcGen)
 
@@ -251,3 +254,5 @@ targets = [butler, bias, dark, flat, science, crosstalkGen, defectsGen, ptcGen, 
            biasGen, darkGen, flatGen, ptcIsr, crosstalkIsr]
 env.Clean(targets, [y for x in targets for y in x] + 
           [os.path.join(CALIB_ROOT)])
+
+env.Alias('install', 'SConscript')
