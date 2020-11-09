@@ -174,16 +174,22 @@ env.Alias("crosstalk", crosstalkGen)
 # Defects
 defectExposure = "^".join([str(vv) for vv in
                            exposureDict['flatExposures'] + exposureDict['darkExposures']])
-defectsGen = env.Command(os.path.join(REPO_ROOT, 'defectGen'), flat,
-                         [getExecutableCmd('cp_pipe', 'findDefects.py', REPO_ROOT,
-                                           f"--calib {CALIB_ROOT}", "--rerun",
-                                           f"{REPO_ROOT}/defectGen",
-                                           "--id detector=0", f"--visitList {defectExposure}",
-                                           "-c assertSameRun=False",
-                                           "-c isrForDarks.doFlat=False",
-                                           "-c isrForFlats.doFlat=False",
-                                           "-c writeAs=BOTH")])
-env.Alias('defectsGen', defectsGen)
+defectIsr = env.Command(os.path.join(REPO_ROOT, "defectIsr"), flat,
+                        [getExecutableCmd('ip_isr', 'runIsr.py', REPO_ROOT,
+                                          f"--calib {CALIB_ROOT}", "--rerun",
+                                          f"{REPO_ROOT}/defectIsr",
+                                          "--id detector=0", f"expId={defectExposure}",
+                                          f"-C {cpPipeSourceDir}/config/defectIsr.py",
+                                          )])
+env.Alias("defectIsr", defectIsr)
+
+defectGen = env.Command(os.path.join(REPO_ROOT, 'defectGen'), defectIsr,
+                        [getExecutableCmd('cp_pipe', 'findDefects.py',
+                                          f"{REPO_ROOT}/defectIsr",
+                                          "--rerun", f"{REPO_ROOT}/defectGen",
+                                          "--id detector=0", f"expId={defectExposure}",
+                                      )])
+env.Alias('defectGen', defectGen)
 
 # PTC
 #    As with Crosstalk, split the ISR from the calibration.
@@ -250,8 +256,8 @@ env.Depends(utils.targets['tests'], os.path.join(REPO_ROOT, 'sciTest'))
 
 
 # Set up things to clean.
-targets = [butler, bias, dark, flat, science, crosstalkGen, defectsGen, ptcGen, bfkGen,
-           biasGen, darkGen, flatGen, ptcIsr, crosstalkIsr]
+targets = [butler, bias, dark, flat, science, crosstalkGen, defectGen, ptcGen, bfkGen,
+           biasGen, darkGen, flatGen, ptcIsr, crosstalkIsr, defectIsr]
 env.Clean(targets, [y for x in targets for y in x] + 
           [os.path.join(CALIB_ROOT)])
 
