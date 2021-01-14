@@ -14,6 +14,7 @@ REPO_ROOT = os.path.join(PKG_ROOT, "DATA")
 CALIB_ROOT = os.path.join(REPO_ROOT, "calibs")
 TESTDATA_ROOT = env.ProductDir("testdata_latiss_cpp")
 CAMERA = "lsst.obs.lsst.auxTel.AuxTelMapper"
+INSTRUME = 'latiss'
 
 num_process = GetOption('num_jobs')
 expVisitKey = 'expId'
@@ -78,7 +79,7 @@ def runConstructCalib(stage, priorStage, visitList,
     else:
         batchOpts = ''
     visitIds = expVisitKey + "=" + '^'.join(str(visit) for visit in visitList)
-    
+
     run = env.Command(os.path.join(REPO_ROOT, f"{stage}Gen"), priorStage,
                       [getExecutableCmd(sourcePackage, sourceScript, REPO_ROOT,
                                         "--calib", "{}".format(CALIB_ROOT),
@@ -188,7 +189,14 @@ defectGen = env.Command(os.path.join(REPO_ROOT, 'defectGen'), defectIsr,
                                           f"{REPO_ROOT}/defectIsr",
                                           "--rerun", f"{REPO_ROOT}/defectGen",
                                           "--id detector=0", f"expId={defectExposure}",
-                                      )])
+                                      ),
+                         getExecutableCmd('cp_pipe', 'ingestAssistant.py',
+                                          f"{REPO_ROOT}/defectGen/defects/*/*.fits",
+                                          "./curated/"),
+                         getExecutableCmd('obs_base', 'ingestCuratedCalibs.py',
+                                          REPO_ROOT, f"{REPO_ROOT}/curated/{INSTRUME}/defects/",
+                                          "--calib {CALIB_ROOT}")])
+
 env.Alias('defectGen', defectGen)
 
 # PTC

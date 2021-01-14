@@ -27,4 +27,5 @@ DATA/raw
 DATA/calibs
 DATA/_mapper
 DATA/registry.sqlite3
+DATA/curated
 pytest*
