@@ -210,7 +210,7 @@ ptcGen = env.Command(os.path.join(REPO_ROOT, 'ptcGen'), ptcIsr,
                                        f"{REPO_ROOT}/ptcIsr",
                                        "--rerun", f"{REPO_ROOT}/ptcGen",
                                        "--id detector=0",
-                                       "-c solve.ptcFitType=FULLCOVARIANCE",
+                                       "-c ptcFitType=POLYNOMIAL polynomialFitDegree=3",
                                        f"--id expId={ptcIsrExposures}",
                                        f"-c doPhotodiode=False",
                                        "-j", str(num_process))])
