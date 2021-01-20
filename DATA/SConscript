@@ -193,9 +193,7 @@ defectGen = env.Command(os.path.join(REPO_ROOT, 'defectGen'), defectIsr,
                          getExecutableCmd('cp_pipe', 'ingestAssistant.py',
                                           f"{REPO_ROOT}/curated/",
                                           f"{REPO_ROOT}/defectGen/defects/*/*.fits"),
-                         getExecutableCmd('pipe_tasks', 'ingestCuratedCalibs.py',
-                                          REPO_ROOT, f"{REPO_ROOT}/curated/{INSTRUME}/defects/",
-                                          "--calib {CALIB_ROOT}")])
+                         ])
 
 env.Alias('defectGen', defectGen)
 
